@@ -8,6 +8,10 @@ return new class extends Migration
 {
     public function up(): void
     {
+        if (! Schema::hasTable('withdrawals') || Schema::hasColumn('withdrawals', 'runa_order_id')) {
+            return;
+        }
+
         Schema::table('withdrawals', function (Blueprint $table) {
             $table->json('metadata')->nullable()->after('notes');
             $table->string('runa_order_id')->nullable()->after('metadata');
@@ -18,6 +22,10 @@ return new class extends Migration
 
     public function down(): void
     {
+        if (! Schema::hasTable('withdrawals') || ! Schema::hasColumn('withdrawals', 'runa_order_id')) {
+            return;
+        }
+
         Schema::table('withdrawals', function (Blueprint $table) {
             $table->dropColumn(['metadata', 'runa_order_id', 'sent_at', 'is_email']);
         });

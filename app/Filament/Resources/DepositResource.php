@@ -50,7 +50,10 @@ class DepositResource extends Resource
                 Tables\Filters\SelectFilter::make('brand')->relationship('brand', 'name'),
                 Tables\Filters\SelectFilter::make('status')->options(['pending' => 'Pending', 'paid' => 'Paid', 'failed' => 'Failed']),
             ])
-            ->actions([Tables\Actions\ViewAction::make()])
+            ->actions([
+                Tables\Actions\EditAction::make(),
+                Tables\Actions\ViewAction::make(),
+            ])
             ->bulkActions([]);
     }
 
@@ -62,8 +65,10 @@ class DepositResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListDeposits::route('/'),
-            'view' => Pages\ViewDeposit::route('/{record}'),
+            'index'  => Pages\ListDeposits::route('/'),
+            'create' => Pages\CreateDeposit::route('/create'),
+            'edit'   => Pages\EditDeposit::route('/{record}/edit'),
+            'view'   => Pages\ViewDeposit::route('/{record}'),
         ];
     }
 }

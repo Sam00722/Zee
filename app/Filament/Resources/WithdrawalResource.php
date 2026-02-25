@@ -50,7 +50,10 @@ class WithdrawalResource extends Resource
                 Tables\Filters\SelectFilter::make('brand')->relationship('brand', 'name'),
                 Tables\Filters\SelectFilter::make('status')->options(['pending' => 'Pending', 'completed' => 'Completed', 'denied' => 'Denied']),
             ])
-            ->actions([Tables\Actions\ViewAction::make()])
+            ->actions([
+                Tables\Actions\EditAction::make(),
+                Tables\Actions\ViewAction::make(),
+            ])
             ->bulkActions([]);
     }
 
@@ -62,8 +65,10 @@ class WithdrawalResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListWithdrawals::route('/'),
-            'view' => Pages\ViewWithdrawal::route('/{record}'),
+            'index'  => Pages\ListWithdrawals::route('/'),
+            'create' => Pages\CreateWithdrawal::route('/create'),
+            'edit'   => Pages\EditWithdrawal::route('/{record}/edit'),
+            'view'   => Pages\ViewWithdrawal::route('/{record}'),
         ];
     }
 }

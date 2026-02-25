@@ -25,6 +25,7 @@ class DepositResource extends Resource
     public static function form(Form $form): Form
     {
         $brand = auth()->user()->brands()->first();
+
         return $form
             ->schema([
                 Forms\Components\Select::make('payment_method_account_id')
@@ -38,10 +39,12 @@ class DepositResource extends Resource
                     ->helperText(fn () => $brand && $brand->depositGateways()->count() === 0
                         ? 'No deposit gateways assigned yet. Ask Super Admin to attach one to your brand (Brand → Payment Gateways).'
                         : null),
+
                 Forms\Components\TextInput::make('amount')
                     ->numeric()
                     ->required()
                     ->minValue(0.01),
+
                 Forms\Components\Textarea::make('notes'),
             ]);
     }
@@ -71,7 +74,7 @@ class DepositResource extends Resource
                     ->visible(fn (Deposit $record) => $record->status === Deposit::STATUS_PENDING)
                     ->action(function (Deposit $record) {
                         $record->update([
-                            'status' => Deposit::STATUS_PAID,
+                            'status'  => Deposit::STATUS_PAID,
                             'paid_at' => now(),
                         ]);
                         Notification::make()
@@ -91,7 +94,7 @@ class DepositResource extends Resource
     public static function getPages(): array
     {
         return [
-            'index' => Pages\ListDeposits::route('/'),
+            'index'  => Pages\ListDeposits::route('/'),
             'create' => Pages\CreateDeposit::route('/create'),
         ];
     }
@@ -99,6 +102,7 @@ class DepositResource extends Resource
     public static function canCreate(): bool
     {
         $brand = auth()->user()->brands()->first();
+
         return $brand && $brand->can_deposit;
     }
 }

@@ -41,5 +41,6 @@ enum PaymentMethodType: string
     case GUARDARIAN = 'guardarian';
     case VENMOMANUL = 'venmo-manual';
     case MANUALCASHAPP = 'manual-cash-app';
+    case PAYAGENCY = 'pay-agency';
     case OTHER = 'other';
 }

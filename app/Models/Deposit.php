@@ -15,11 +15,14 @@ class Deposit extends Model
         'status',
         'notes',
         'paid_at',
+        'pay_agency_transaction_id',
+        'gateway_response',
     ];
 
     protected $casts = [
         'amount' => 'decimal:2',
         'paid_at' => 'datetime',
+        'gateway_response' => 'array',
     ];
 
     public const STATUS_PENDING = 'pending';

@@ -58,12 +58,25 @@ class PayAgencyService
             'order_id'            => $orderId,
         ], static fn ($v) => $v !== null);
 
+        Log::info('Pay.agency: creating payment link', [
+            'url'                  => self::PAYMENT_LINK_URL,
+            'bearer_token_preview' => substr($this->bearerToken, 0, 10).'...',
+            'template_id'          => $this->templateId ?: '(not set)',
+            'currency'             => $this->currency ?: '(not set)',
+            'payload_sent'         => $payload,
+        ]);
+
         $response = Http::withHeaders([
             'Authorization' => 'Bearer '.$this->bearerToken,
             'Content-Type'  => 'application/json',
         ])->post(self::PAYMENT_LINK_URL, $payload);
 
         $body = $response->json();
+
+        Log::info('Pay.agency: payment link response', [
+            'http_status'   => $response->status(),
+            'response_body' => $body ?? $response->body(),
+        ]);
 
         if ($body === null) {
             Log::error('Pay.agency: empty response from payment link API', [

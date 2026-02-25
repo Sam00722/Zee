@@ -43,21 +43,25 @@ class PayAgencyService
      */
     public function createPaymentLink(float $amount, string $orderId): array
     {
-        if ($this->bearerToken === '' || $this->templateId === '') {
+        if ($this->bearerToken === '') {
             throw new \InvalidArgumentException(
-                'Pay.agency bearer_token and payment_template_id must be set in the account credentials.'
+                'Pay.agency bearer_token must be set in the account credentials.'
             );
         }
+
+        // payment_template_id and terminal_id must NOT be sent with a test key (pay.agency docs).
+        // Only include them when they are explicitly set in the credentials (i.e. live mode).
+        $payload = array_filter([
+            'payment_template_id' => $this->templateId ?: null,
+            'amount'              => $amount,
+            'currency'            => $this->currency ?: null,
+            'order_id'            => $orderId,
+        ], static fn ($v) => $v !== null);
 
         $response = Http::withHeaders([
             'Authorization' => 'Bearer '.$this->bearerToken,
             'Content-Type'  => 'application/json',
-        ])->post(self::PAYMENT_LINK_URL, [
-            'payment_template_id' => $this->templateId,
-            'amount'              => $amount,
-            'currency'            => $this->currency,
-            'order_id'            => $orderId,
-        ]);
+        ])->post(self::PAYMENT_LINK_URL, $payload);
 
         $body = $response->json();
 

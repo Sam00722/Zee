@@ -48,8 +48,8 @@ class BrandPanelProvider extends PanelProvider
             ])
             ->discoverWidgets(in: app_path('Filament/Brand/Widgets'), for: 'App\\Filament\\Brand\\Widgets')
             ->widgets([
+                \App\Filament\Brand\Widgets\BrandStatsOverview::class,
                 Widgets\AccountWidget::class,
-                Widgets\FilamentInfoWidget::class,
             ])
             ->middleware([
                 EncryptCookies::class,

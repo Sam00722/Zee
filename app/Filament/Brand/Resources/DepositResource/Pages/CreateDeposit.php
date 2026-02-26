@@ -40,7 +40,7 @@ class CreateDeposit extends CreateRecord
             $service = new PayAgencyService($account);
             $result  = $service->createPaymentLink(
                 (float) $record->amount,
-                (string) $record->id
+                str_pad((string) $record->id, 3, '0', STR_PAD_LEFT)
             );
 
             $paymentUrl = $result['data'] ?? null;

@@ -28,24 +28,44 @@ class DepositResource extends Resource
 
         return $form
             ->schema([
-                Forms\Components\Select::make('payment_method_account_id')
-                    ->label('Payment Gateway')
-                    ->options(
-                        $brand
-                            ? $brand->depositGateways()->get()->mapWithKeys(fn ($pma) => [$pma->id => $pma->name])
-                            : []
-                    )
-                    ->required()
-                    ->helperText(fn () => $brand && $brand->depositGateways()->count() === 0
-                        ? 'No deposit gateways assigned yet. Ask Super Admin to attach one to your brand (Brand → Payment Gateways).'
-                        : null),
+                Forms\Components\Section::make('New Deposit Request')
+                    ->description('Select a payment gateway and enter the amount you wish to deposit.')
+                    ->icon('heroicon-o-arrow-down-circle')
+                    ->schema([
+                        Forms\Components\Grid::make(2)
+                            ->schema([
+                                Forms\Components\Select::make('payment_method_account_id')
+                                    ->label('Payment Gateway')
+                                    ->options(
+                                        $brand
+                                            ? $brand->depositGateways()->get()->mapWithKeys(fn ($pma) => [$pma->id => $pma->name])
+                                            : []
+                                    )
+                                    ->required()
+                                    ->searchable()
+                                    ->native(false)
+                                    ->placeholder('Choose a gateway...')
+                                    ->helperText(fn () => $brand && $brand->depositGateways()->count() === 0
+                                        ? 'No deposit gateways assigned yet. Contact the Super Admin to attach one to your brand.'
+                                        : null),
 
-                Forms\Components\TextInput::make('amount')
-                    ->numeric()
-                    ->required()
-                    ->minValue(0.01),
+                                Forms\Components\TextInput::make('amount')
+                                    ->label('Amount')
+                                    ->numeric()
+                                    ->required()
+                                    ->minValue(0.01)
+                                    ->prefix('$')
+                                    ->placeholder('0.00')
+                                    ->inputMode('decimal')
+                                    ->helperText('Minimum deposit: $0.01'),
+                            ]),
 
-                Forms\Components\Textarea::make('notes'),
+                        Forms\Components\Textarea::make('notes')
+                            ->label('Notes (optional)')
+                            ->placeholder('Add any reference or additional information for this deposit...')
+                            ->rows(3)
+                            ->columnSpanFull(),
+                    ]),
             ]);
     }
 

@@ -26,24 +26,47 @@ class WithdrawalResource extends Resource
     public static function form(Form $form): Form
     {
         $brand = auth()->user()->brands()->first();
+
         return $form
             ->schema([
-                Forms\Components\Select::make('payment_method_account_id')
-                    ->label('Payment Gateway')
-                    ->options(
-                        $brand
-                            ? $brand->withdrawalGateways()->get()->mapWithKeys(fn ($pma) => [$pma->id => $pma->name])
-                            : []
-                    )
-                    ->required()
-                    ->helperText(fn () => $brand && $brand->withdrawalGateways()->count() === 0
-                        ? 'No withdrawal gateways assigned yet. Ask Super Admin to attach one to your brand (Brand → Payment Gateways).'
-                        : null),
-                Forms\Components\TextInput::make('amount')
-                    ->numeric()
-                    ->required()
-                    ->minValue(0.01),
-                Forms\Components\Textarea::make('notes'),
+                Forms\Components\Section::make('New Withdrawal Request')
+                    ->description('Select a payment gateway and enter the amount you wish to withdraw.')
+                    ->icon('heroicon-o-arrow-up-circle')
+                    ->schema([
+                        Forms\Components\Grid::make(2)
+                            ->schema([
+                                Forms\Components\Select::make('payment_method_account_id')
+                                    ->label('Payment Gateway')
+                                    ->options(
+                                        $brand
+                                            ? $brand->withdrawalGateways()->get()->mapWithKeys(fn ($pma) => [$pma->id => $pma->name])
+                                            : []
+                                    )
+                                    ->required()
+                                    ->searchable()
+                                    ->native(false)
+                                    ->placeholder('Choose a gateway...')
+                                    ->helperText(fn () => $brand && $brand->withdrawalGateways()->count() === 0
+                                        ? 'No withdrawal gateways assigned yet. Contact the Super Admin to attach one to your brand.'
+                                        : null),
+
+                                Forms\Components\TextInput::make('amount')
+                                    ->label('Amount')
+                                    ->numeric()
+                                    ->required()
+                                    ->minValue(0.01)
+                                    ->prefix('$')
+                                    ->placeholder('0.00')
+                                    ->inputMode('decimal')
+                                    ->helperText('Minimum withdrawal: $0.01'),
+                            ]),
+
+                        Forms\Components\Textarea::make('notes')
+                            ->label('Notes (optional)')
+                            ->placeholder('Add any reference or additional information for this withdrawal...')
+                            ->rows(3)
+                            ->columnSpanFull(),
+                    ]),
             ]);
     }
 

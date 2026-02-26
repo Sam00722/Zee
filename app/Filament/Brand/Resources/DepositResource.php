@@ -6,7 +6,6 @@ use App\Filament\Brand\Resources\DepositResource\Pages;
 use App\Models\Deposit;
 use Filament\Forms;
 use Filament\Forms\Form;
-use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -83,26 +82,7 @@ class DepositResource extends Resource
                 Tables\Columns\TextColumn::make('created_at')->dateTime()->sortable(),
             ])
             ->filters([])
-            ->actions([
-                Tables\Actions\Action::make('approve')
-                    ->label('Approve')
-                    ->icon('heroicon-o-check')
-                    ->color('success')
-                    ->requiresConfirmation()
-                    ->modalHeading('Approve Deposit')
-                    ->modalDescription('Mark this deposit as paid?')
-                    ->visible(fn (Deposit $record) => $record->status === Deposit::STATUS_PENDING)
-                    ->action(function (Deposit $record) {
-                        $record->update([
-                            'status'  => Deposit::STATUS_PAID,
-                            'paid_at' => now(),
-                        ]);
-                        Notification::make()
-                            ->title('Deposit approved.')
-                            ->success()
-                            ->send();
-                    }),
-            ])
+            ->actions([])
             ->bulkActions([]);
     }
 

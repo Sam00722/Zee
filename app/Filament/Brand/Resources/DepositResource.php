@@ -213,7 +213,7 @@ class DepositResource extends Resource
 
                                 Infolists\Components\TextEntry::make('pay_agency_transaction_id')
                                     ->label('Transaction ID')
-                                    ->default('—')
+                                    ->placeholder('—')
                                     ->copyable(),
 
                                 Infolists\Components\TextEntry::make('amount')
@@ -226,7 +226,7 @@ class DepositResource extends Resource
                                 Infolists\Components\TextEntry::make('paid_at')
                                     ->label('Processed At')
                                     ->dateTime()
-                                    ->default('—'),
+                                    ->placeholder('—'),
 
                                 Infolists\Components\TextEntry::make('created_at')
                                     ->label('Submitted At')
@@ -240,23 +240,23 @@ class DepositResource extends Resource
                     ->schema([
                         Infolists\Components\TextEntry::make('gateway_response.message')
                             ->label('Message')
-                            ->default('—'),
+                            ->placeholder('—'),
 
                         Infolists\Components\TextEntry::make('gateway_response.data.order_id')
                             ->label('Order ID')
-                            ->default('—'),
+                            ->placeholder('—'),
 
                         Infolists\Components\TextEntry::make('gateway_response.data.customer.first_name')
                             ->label('Customer First Name')
-                            ->default('—'),
+                            ->placeholder('—'),
 
                         Infolists\Components\TextEntry::make('gateway_response.data.customer.last_name')
                             ->label('Customer Last Name')
-                            ->default('—'),
+                            ->placeholder('—'),
 
                         Infolists\Components\TextEntry::make('gateway_response.data.customer.email')
                             ->label('Customer Email')
-                            ->default('—'),
+                            ->placeholder('—'),
                     ])
                     ->columns(2),
             ]);

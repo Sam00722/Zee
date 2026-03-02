@@ -10,6 +10,8 @@ class PayAgencyService
 {
     protected string $bearerToken;
 
+    protected string $encryptionKey;
+
     protected string $currency;
 
     protected string $terminalId;
@@ -23,9 +25,10 @@ class PayAgencyService
             ? $account->credentials
             : (array) json_decode((string) $account->credentials, true);
 
-        $this->bearerToken = $credentials['bearer_token'] ?? '';
-        $this->currency    = $credentials['currency'] ?? 'USD';
-        $this->terminalId  = $credentials['terminal_id'] ?? '';
+        $this->bearerToken   = $credentials['bearer_token'] ?? '';
+        $this->encryptionKey = $credentials['encryption_key'] ?? '';
+        $this->currency      = $credentials['currency'] ?? 'USD';
+        $this->terminalId    = $credentials['terminal_id'] ?? '';
 
         $mode = $credentials['mode'] ?? 'live';
         $this->cardApiUrl = $mode === 'test'
@@ -34,14 +37,32 @@ class PayAgencyService
     }
 
     /**
+     * Encrypt a payload array using AES-256-CBC.
+     * Returns the string "{iv_hex}:{encrypted_hex}" as required by pay.agency.
+     */
+    private function encryptPayload(array $data): string
+    {
+        if ($this->encryptionKey === '') {
+            throw new \InvalidArgumentException('Pay.agency encryption_key must be set in the account credentials.');
+        }
+
+        $json      = json_encode($data);
+        $iv        = random_bytes(16);
+        $encrypted = openssl_encrypt($json, 'AES-256-CBC', $this->encryptionKey, OPENSSL_RAW_DATA, $iv);
+
+        return bin2hex($iv).':'.bin2hex($encrypted);
+    }
+
+    /**
      * Submit a card payment directly to pay.agency.
      *
-     * Expected payload fields (all flat, no nesting):
+     * Payload fields (flat, no nesting):
      *   first_name, last_name, email, phone_number
      *   address, city, state, zip, country (ISO 2-letter)
      *   card_number, card_expiry_month, card_expiry_year, card_cvv
      *   amount, currency, order_id
-     *   ip_address, redirect_url, webhook_url
+     *   ip_address, redirect_url, webhook_url (optional)
+     *   terminal_id (optional, from credentials)
      */
     public function submitCard(float $amount, string $orderId, array $data): array
     {
@@ -51,17 +72,17 @@ class PayAgencyService
 
         $payload = [
             // Customer
-            'first_name'    => $data['customer_first_name'] ?? '',
-            'last_name'     => $data['customer_last_name'] ?? '',
-            'email'         => $data['customer_email'] ?? '',
-            'phone_number'  => $data['phone_number'] ?? '',
+            'first_name'   => $data['customer_first_name'] ?? '',
+            'last_name'    => $data['customer_last_name'] ?? '',
+            'email'        => $data['customer_email'] ?? '',
+            'phone_number' => $data['phone_number'] ?? '',
 
             // Billing address
-            'address'       => $data['address'] ?? '',
-            'city'          => $data['city'] ?? '',
-            'state'         => $data['state'] ?? '',
-            'zip'           => $data['zip'] ?? '',
-            'country'       => $data['country'] ?? '',
+            'address' => $data['address'] ?? '',
+            'city'    => $data['city'] ?? '',
+            'state'   => $data['state'] ?? '',
+            'zip'     => $data['zip'] ?? '',
+            'country' => $data['country'] ?? '',
 
             // Card
             'card_number'       => preg_replace('/\D/', '', $data['card_number'] ?? ''),
@@ -70,16 +91,16 @@ class PayAgencyService
             'card_cvv'          => $data['card_cvv'] ?? '',
 
             // Transaction
-            'amount'        => $amount,
-            'currency'      => $this->currency,
-            'order_id'      => $orderId,
-            'ip_address'    => $data['ip_address'] ?? '',
-            'redirect_url'  => $data['redirect_url'] ?? '',
-            'webhook_url'   => $data['webhook_url'] ?? '',
-            'terminal_id'   => $this->terminalId ?: null,
+            'amount'       => $amount,
+            'currency'     => $this->currency,
+            'order_id'     => $orderId,
+            'ip_address'   => $data['ip_address'] ?? '',
+            'redirect_url' => $data['redirect_url'] ?? '',
+            'webhook_url'  => $data['webhook_url'] ?? '',
+            'terminal_id'  => $this->terminalId ?: null,
         ];
 
-        // Remove null/empty optional fields so the API doesn't reject them.
+        // Strip null / empty optional fields.
         $payload = array_filter($payload, fn ($v) => $v !== null && $v !== '');
 
         Log::info('Pay.agency: submitting card payment', [
@@ -93,7 +114,9 @@ class PayAgencyService
         $response = Http::withHeaders([
             'Authorization' => 'Bearer '.$this->bearerToken,
             'Content-Type'  => 'application/json',
-        ])->post($this->cardApiUrl, $payload);
+        ])->post($this->cardApiUrl, [
+            'payload' => $this->encryptPayload($payload),
+        ]);
 
         $body = $response->json();
 

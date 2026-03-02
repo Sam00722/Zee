@@ -288,7 +288,7 @@ class DepositResource extends Resource
 
     public static function getEloquentQuery(): Builder
     {
-        $brandIds = auth()->user()->brands()->pluck('id');
+        $brandIds = auth()->user()->brands()->pluck('brands.id');
 
         return parent::getEloquentQuery()->whereIn('brand_id', $brandIds);
     }

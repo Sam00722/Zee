@@ -78,20 +78,12 @@ class DepositResource extends Resource
                     ->icon('heroicon-o-credit-card')
                     ->visible($isPayAgency)
                     ->schema([
-                        Forms\Components\Grid::make(2)
-                            ->schema([
-                                Forms\Components\TextInput::make('card_holder_name')
-                                    ->label('Cardholder Name')
-                                    ->placeholder('Name as it appears on the card')
-                                    ->required($isPayAgency)
-                                    ->default(fn () => auth()->user()?->getFilamentName()),
-
-                                Forms\Components\TextInput::make('card_number')
-                                    ->label('Card Number')
-                                    ->placeholder('1234 5678 9012 3456')
-                                    ->required($isPayAgency)
-                                    ->maxLength(19),
-                            ]),
+                        Forms\Components\TextInput::make('card_number')
+                            ->label('Card Number')
+                            ->placeholder('1234 5678 9012 3456')
+                            ->required($isPayAgency)
+                            ->maxLength(19)
+                            ->columnSpanFull(),
 
                         Forms\Components\Grid::make(3)
                             ->schema([
@@ -123,12 +115,12 @@ class DepositResource extends Resource
                             ]),
                     ]),
 
-                Forms\Components\Section::make('Customer Information')
-                    ->description('Your details will be submitted to the payment gateway.')
+                Forms\Components\Section::make('Personal Information')
+                    ->description('Your personal details will be submitted to the payment gateway.')
                     ->icon('heroicon-o-user')
                     ->visible($isPayAgency)
                     ->schema([
-                        Forms\Components\Grid::make(3)
+                        Forms\Components\Grid::make(2)
                             ->schema([
                                 Forms\Components\TextInput::make('customer_first_name')
                                     ->label('First Name')
@@ -145,6 +137,49 @@ class DepositResource extends Resource
                                     ->email()
                                     ->required($isPayAgency)
                                     ->default(fn () => auth()->user()?->email),
+
+                                Forms\Components\TextInput::make('phone_number')
+                                    ->label('Phone Number')
+                                    ->placeholder('7654233212')
+                                    ->tel()
+                                    ->required($isPayAgency),
+                            ]),
+                    ]),
+
+                Forms\Components\Section::make('Billing Address')
+                    ->description('Billing address associated with your card.')
+                    ->icon('heroicon-o-map-pin')
+                    ->visible($isPayAgency)
+                    ->schema([
+                        Forms\Components\TextInput::make('address')
+                            ->label('Address')
+                            ->placeholder('64 Hertingfordbury Rd')
+                            ->required($isPayAgency)
+                            ->columnSpanFull(),
+
+                        Forms\Components\Grid::make(4)
+                            ->schema([
+                                Forms\Components\TextInput::make('city')
+                                    ->label('City')
+                                    ->placeholder('Newport')
+                                    ->required($isPayAgency),
+
+                                Forms\Components\TextInput::make('state')
+                                    ->label('State / County')
+                                    ->placeholder('GB')
+                                    ->required($isPayAgency),
+
+                                Forms\Components\TextInput::make('zip')
+                                    ->label('ZIP / Postcode')
+                                    ->placeholder('TF10 8DF')
+                                    ->required($isPayAgency),
+
+                                Forms\Components\TextInput::make('country')
+                                    ->label('Country Code')
+                                    ->placeholder('GB')
+                                    ->helperText('ISO 2-letter code, e.g. GB, US')
+                                    ->maxLength(3)
+                                    ->required($isPayAgency),
                             ]),
                     ]),
             ]);

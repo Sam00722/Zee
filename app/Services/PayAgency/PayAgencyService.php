@@ -12,6 +12,8 @@ class PayAgencyService
 
     protected string $currency;
 
+    protected string $terminalId;
+
     /** Base URL for card charge and status endpoints. */
     protected string $cardApiUrl;
 
@@ -23,6 +25,7 @@ class PayAgencyService
 
         $this->bearerToken = $credentials['bearer_token'] ?? '';
         $this->currency    = $credentials['currency'] ?? 'USD';
+        $this->terminalId  = $credentials['terminal_id'] ?? '';
 
         $mode = $credentials['mode'] ?? 'live';
         $this->cardApiUrl = $mode === 'test'
@@ -33,41 +36,58 @@ class PayAgencyService
     /**
      * Submit a card payment directly to pay.agency.
      *
-     * @param  float   $amount
-     * @param  string  $orderId
-     * @param  array   $card     Keys: number, expiry_month, expiry_year, cvv, holder_name
-     * @param  array   $customer Keys: first_name, last_name, email
+     * Expected payload fields (all flat, no nesting):
+     *   first_name, last_name, email, phone_number
+     *   address, city, state, zip, country (ISO 2-letter)
+     *   card_number, card_expiry_month, card_expiry_year, card_cvv
+     *   amount, currency, order_id
+     *   ip_address, redirect_url, webhook_url
      */
-    public function submitCard(float $amount, string $orderId, array $card, array $customer): array
+    public function submitCard(float $amount, string $orderId, array $data): array
     {
         if ($this->bearerToken === '') {
             throw new \InvalidArgumentException('Pay.agency bearer_token must be set in the account credentials.');
         }
 
         $payload = [
-            'amount'   => $amount,
-            'currency' => $this->currency,
-            'order_id' => $orderId,
-            'card'     => [
-                'number'       => preg_replace('/\D/', '', $card['number'] ?? ''),
-                'expiry_month' => $card['expiry_month'] ?? '',
-                'expiry_year'  => $card['expiry_year'] ?? '',
-                'cvv'          => $card['cvv'] ?? '',
-                'holder_name'  => $card['holder_name'] ?? '',
-            ],
-            'customer' => [
-                'first_name' => $customer['first_name'] ?? '',
-                'last_name'  => $customer['last_name'] ?? '',
-                'email'      => $customer['email'] ?? '',
-            ],
+            // Customer
+            'first_name'    => $data['customer_first_name'] ?? '',
+            'last_name'     => $data['customer_last_name'] ?? '',
+            'email'         => $data['customer_email'] ?? '',
+            'phone_number'  => $data['phone_number'] ?? '',
+
+            // Billing address
+            'address'       => $data['address'] ?? '',
+            'city'          => $data['city'] ?? '',
+            'state'         => $data['state'] ?? '',
+            'zip'           => $data['zip'] ?? '',
+            'country'       => $data['country'] ?? '',
+
+            // Card
+            'card_number'       => preg_replace('/\D/', '', $data['card_number'] ?? ''),
+            'card_expiry_month' => $data['card_expiry_month'] ?? '',
+            'card_expiry_year'  => $data['card_expiry_year'] ?? '',
+            'card_cvv'          => $data['card_cvv'] ?? '',
+
+            // Transaction
+            'amount'        => $amount,
+            'currency'      => $this->currency,
+            'order_id'      => $orderId,
+            'ip_address'    => $data['ip_address'] ?? '',
+            'redirect_url'  => $data['redirect_url'] ?? '',
+            'webhook_url'   => $data['webhook_url'] ?? '',
+            'terminal_id'   => $this->terminalId ?: null,
         ];
+
+        // Remove null/empty optional fields so the API doesn't reject them.
+        $payload = array_filter($payload, fn ($v) => $v !== null && $v !== '');
 
         Log::info('Pay.agency: submitting card payment', [
             'url'        => $this->cardApiUrl,
             'order_id'   => $orderId,
             'amount'     => $amount,
             'currency'   => $this->currency,
-            'card_last4' => substr(preg_replace('/\D/', '', $card['number'] ?? ''), -4),
+            'card_last4' => substr(preg_replace('/\D/', '', $data['card_number'] ?? ''), -4),
         ]);
 
         $response = Http::withHeaders([

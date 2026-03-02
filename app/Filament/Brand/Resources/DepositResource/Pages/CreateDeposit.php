@@ -14,37 +14,22 @@ class CreateDeposit extends CreateRecord
 {
     protected static string $resource = DepositResource::class;
 
-    /** Card and customer data extracted from the form — not persisted on the model. */
-    protected ?array $cardData     = null;
-    protected ?array $customerData = null;
+    /** Flat card + billing + customer data extracted from the form — not persisted on the model. */
+    protected array $paymentData = [];
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        // Extract card / customer fields before the model is created.
-        $this->cardData = [
-            'number'       => $data['card_number'] ?? '',
-            'expiry_month' => $data['card_expiry_month'] ?? '',
-            'expiry_year'  => $data['card_expiry_year'] ?? '',
-            'cvv'          => $data['card_cvv'] ?? '',
-            'holder_name'  => $data['card_holder_name'] ?? '',
+        // Extract all payment-related fields (not stored on the Deposit model).
+        $paymentKeys = [
+            'card_number', 'card_expiry_month', 'card_expiry_year', 'card_cvv',
+            'customer_first_name', 'customer_last_name', 'customer_email', 'phone_number',
+            'address', 'city', 'state', 'zip', 'country',
         ];
 
-        $this->customerData = [
-            'first_name' => $data['customer_first_name'] ?? '',
-            'last_name'  => $data['customer_last_name'] ?? '',
-            'email'      => $data['customer_email'] ?? '',
-        ];
-
-        unset(
-            $data['card_number'],
-            $data['card_expiry_month'],
-            $data['card_expiry_year'],
-            $data['card_cvv'],
-            $data['card_holder_name'],
-            $data['customer_first_name'],
-            $data['customer_last_name'],
-            $data['customer_email'],
-        );
+        foreach ($paymentKeys as $key) {
+            $this->paymentData[$key] = $data[$key] ?? '';
+            unset($data[$key]);
+        }
 
         $brand = auth()->user()->brands()->first();
         $data['brand_id'] = $brand->id;
@@ -63,13 +48,17 @@ class CreateDeposit extends CreateRecord
             return;
         }
 
+        // Add server-side fields not collected from the form.
+        $this->paymentData['ip_address']   = request()->ip() ?? '127.0.0.1';
+        $this->paymentData['redirect_url'] = url('/company/deposits');
+        $this->paymentData['webhook_url']  = '';
+
         try {
             $service = new PayAgencyService($account);
             $result  = $service->submitCard(
                 (float) $record->amount,
                 str_pad((string) $record->id, 3, '0', STR_PAD_LEFT),
-                $this->cardData ?? [],
-                $this->customerData ?? [],
+                $this->paymentData,
             );
 
             $status = $result['status'] ?? null;
@@ -86,6 +75,19 @@ class CreateDeposit extends CreateRecord
                     ->title('Payment successful')
                     ->body('Your deposit has been processed.')
                     ->success()
+                    ->send();
+            } elseif ($status === 'REDIRECT') {
+                // 3DS challenge triggered — not supported in this integration.
+                $record->update([
+                    'status'           => Deposit::STATUS_FAILED,
+                    'gateway_response' => $result,
+                ]);
+
+                Notification::make()
+                    ->title('Payment requires additional verification')
+                    ->body('Your card requires 3D Secure authentication which is not supported. Please use a different card.')
+                    ->danger()
+                    ->persistent()
                     ->send();
             } else {
                 $record->update([

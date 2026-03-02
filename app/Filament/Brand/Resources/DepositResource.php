@@ -9,6 +9,8 @@ use App\Models\PaymentMethodAccount;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Forms\Get;
+use Filament\Infolists;
+use Filament\Infolists\Infolist;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -185,6 +187,81 @@ class DepositResource extends Resource
             ]);
     }
 
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist
+            ->schema([
+                Infolists\Components\Section::make(fn (Deposit $record) => $record->status === Deposit::STATUS_PAID
+                    ? 'Transaction Successful'
+                    : 'Transaction Failed'
+                )
+                    ->icon(fn (Deposit $record) => $record->status === Deposit::STATUS_PAID
+                        ? 'heroicon-o-check-circle'
+                        : 'heroicon-o-x-circle'
+                    )
+                    ->iconColor(fn (Deposit $record) => $record->status === Deposit::STATUS_PAID ? 'success' : 'danger')
+                    ->schema([
+                        Infolists\Components\Grid::make(2)
+                            ->schema([
+                                Infolists\Components\TextEntry::make('status')
+                                    ->badge()
+                                    ->color(fn (string $state) => match ($state) {
+                                        Deposit::STATUS_PAID    => 'success',
+                                        Deposit::STATUS_FAILED  => 'danger',
+                                        default                 => 'warning',
+                                    }),
+
+                                Infolists\Components\TextEntry::make('pay_agency_transaction_id')
+                                    ->label('Transaction ID')
+                                    ->default('—')
+                                    ->copyable(),
+
+                                Infolists\Components\TextEntry::make('amount')
+                                    ->label('Amount')
+                                    ->money('USD'),
+
+                                Infolists\Components\TextEntry::make('paymentMethodAccount.name')
+                                    ->label('Gateway'),
+
+                                Infolists\Components\TextEntry::make('paid_at')
+                                    ->label('Processed At')
+                                    ->dateTime()
+                                    ->default('—'),
+
+                                Infolists\Components\TextEntry::make('created_at')
+                                    ->label('Submitted At')
+                                    ->dateTime(),
+                            ]),
+                    ]),
+
+                Infolists\Components\Section::make('Gateway Response')
+                    ->icon('heroicon-o-document-text')
+                    ->collapsed()
+                    ->schema([
+                        Infolists\Components\TextEntry::make('gateway_response.message')
+                            ->label('Message')
+                            ->default('—'),
+
+                        Infolists\Components\TextEntry::make('gateway_response.data.order_id')
+                            ->label('Order ID')
+                            ->default('—'),
+
+                        Infolists\Components\TextEntry::make('gateway_response.data.customer.first_name')
+                            ->label('Customer First Name')
+                            ->default('—'),
+
+                        Infolists\Components\TextEntry::make('gateway_response.data.customer.last_name')
+                            ->label('Customer Last Name')
+                            ->default('—'),
+
+                        Infolists\Components\TextEntry::make('gateway_response.data.customer.email')
+                            ->label('Customer Email')
+                            ->default('—'),
+                    ])
+                    ->columns(2),
+            ]);
+    }
+
     public static function table(Table $table): Table
     {
         return $table
@@ -199,7 +276,9 @@ class DepositResource extends Resource
                 Tables\Columns\TextColumn::make('created_at')->dateTime()->sortable(),
             ])
             ->filters([])
-            ->actions([])
+            ->actions([
+                Tables\Actions\ViewAction::make(),
+            ])
             ->bulkActions([]);
     }
 
@@ -213,6 +292,7 @@ class DepositResource extends Resource
         return [
             'index'  => Pages\ListDeposits::route('/'),
             'create' => Pages\CreateDeposit::route('/create'),
+            'view'   => Pages\ViewDeposit::route('/{record}'),
         ];
     }
 

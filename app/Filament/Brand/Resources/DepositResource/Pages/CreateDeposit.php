@@ -6,7 +6,6 @@ use App\Enums\PaymentMethodType;
 use App\Filament\Brand\Resources\DepositResource;
 use App\Models\Deposit;
 use App\Services\PayAgency\PayAgencyService;
-use Filament\Notifications\Notification;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Support\Facades\Log;
 
@@ -70,37 +69,17 @@ class CreateDeposit extends CreateRecord
                     'pay_agency_transaction_id' => $result['data']['transaction_id'] ?? null,
                     'gateway_response'          => $result,
                 ]);
-
-                Notification::make()
-                    ->title('Payment successful')
-                    ->body('Your deposit has been processed.')
-                    ->success()
-                    ->send();
             } elseif ($status === 'REDIRECT') {
                 // 3DS challenge triggered — not supported in this integration.
                 $record->update([
                     'status'           => Deposit::STATUS_FAILED,
                     'gateway_response' => $result,
                 ]);
-
-                Notification::make()
-                    ->title('Payment requires additional verification')
-                    ->body('Your card requires 3D Secure authentication which is not supported. Please use a different card.')
-                    ->danger()
-                    ->persistent()
-                    ->send();
             } else {
                 $record->update([
                     'status'           => Deposit::STATUS_FAILED,
                     'gateway_response' => $result,
                 ]);
-
-                Notification::make()
-                    ->title('Payment failed')
-                    ->body($result['message'] ?? 'The payment could not be processed. Please check your card details and try again.')
-                    ->danger()
-                    ->persistent()
-                    ->send();
             }
         } catch (\Throwable $e) {
             Log::error('Pay.agency card submission error', [
@@ -109,18 +88,11 @@ class CreateDeposit extends CreateRecord
             ]);
 
             $record->update(['status' => Deposit::STATUS_FAILED]);
-
-            Notification::make()
-                ->title('Payment error')
-                ->body('Could not connect to the payment gateway. Please contact support.')
-                ->danger()
-                ->persistent()
-                ->send();
         }
     }
 
     protected function getRedirectUrl(): string
     {
-        return $this->getResource()::getUrl('index');
+        return $this->getResource()::getUrl('view', ['record' => $this->record]);
     }
 }

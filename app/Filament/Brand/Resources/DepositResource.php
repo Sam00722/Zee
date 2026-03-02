@@ -265,13 +265,17 @@ class DepositResource extends Resource
     public static function table(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query) => $query->where('brand_id', auth()->user()->brands()->first()?->id))
             ->defaultSort('created_at', 'desc')
             ->columns([
                 Tables\Columns\TextColumn::make('id')->label('ID')->sortable(),
                 Tables\Columns\TextColumn::make('paymentMethodAccount.name')->label('Gateway')->sortable(),
                 Tables\Columns\TextColumn::make('amount')->money('USD')->sortable(),
-                Tables\Columns\TextColumn::make('status')->badge()->sortable(),
+                Tables\Columns\TextColumn::make('status')->badge()->sortable()
+                    ->color(fn (string $state): string => match ($state) {
+                        Deposit::STATUS_PAID    => 'success',
+                        Deposit::STATUS_FAILED  => 'danger',
+                        default                 => 'warning',
+                    }),
                 Tables\Columns\TextColumn::make('paid_at')->dateTime()->sortable()->toggleable(isToggledHiddenByDefault: true),
                 Tables\Columns\TextColumn::make('created_at')->dateTime()->sortable(),
             ])
@@ -280,6 +284,13 @@ class DepositResource extends Resource
                 Tables\Actions\ViewAction::make(),
             ])
             ->bulkActions([]);
+    }
+
+    public static function getEloquentQuery(): Builder
+    {
+        $brandIds = auth()->user()->brands()->pluck('id');
+
+        return parent::getEloquentQuery()->whereIn('brand_id', $brandIds);
     }
 
     public static function getRelations(): array

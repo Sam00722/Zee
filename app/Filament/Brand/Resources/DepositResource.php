@@ -2,10 +2,13 @@
 
 namespace App\Filament\Brand\Resources;
 
+use App\Enums\PaymentMethodType;
 use App\Filament\Brand\Resources\DepositResource\Pages;
 use App\Models\Deposit;
+use App\Models\PaymentMethodAccount;
 use Filament\Forms;
 use Filament\Forms\Form;
+use Filament\Forms\Get;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -25,6 +28,9 @@ class DepositResource extends Resource
     {
         $brand = auth()->user()->brands()->first();
 
+        $isPayAgency = fn (Get $get): bool => PaymentMethodAccount::find($get('payment_method_account_id'))
+            ?->payment_method_type === PaymentMethodType::PAYAGENCY->value;
+
         return $form
             ->schema([
                 Forms\Components\Section::make('New Deposit Request')
@@ -43,6 +49,7 @@ class DepositResource extends Resource
                                     ->required()
                                     ->searchable()
                                     ->native(false)
+                                    ->live()
                                     ->placeholder('Choose a gateway...')
                                     ->helperText(fn () => $brand && $brand->depositGateways()->count() === 0
                                         ? 'No deposit gateways assigned yet. Contact the Super Admin to attach one to your brand.'
@@ -64,6 +71,81 @@ class DepositResource extends Resource
                             ->placeholder('Add any reference or additional information for this deposit...')
                             ->rows(3)
                             ->columnSpanFull(),
+                    ]),
+
+                Forms\Components\Section::make('Card Details')
+                    ->description('Enter your card information to complete the deposit.')
+                    ->icon('heroicon-o-credit-card')
+                    ->visible($isPayAgency)
+                    ->schema([
+                        Forms\Components\Grid::make(2)
+                            ->schema([
+                                Forms\Components\TextInput::make('card_holder_name')
+                                    ->label('Cardholder Name')
+                                    ->placeholder('Name as it appears on the card')
+                                    ->required($isPayAgency)
+                                    ->default(fn () => auth()->user()?->getFilamentName()),
+
+                                Forms\Components\TextInput::make('card_number')
+                                    ->label('Card Number')
+                                    ->placeholder('1234 5678 9012 3456')
+                                    ->required($isPayAgency)
+                                    ->maxLength(19),
+                            ]),
+
+                        Forms\Components\Grid::make(3)
+                            ->schema([
+                                Forms\Components\Select::make('card_expiry_month')
+                                    ->label('Expiry Month')
+                                    ->options(collect(range(1, 12))->mapWithKeys(
+                                        fn ($m) => [str_pad($m, 2, '0', STR_PAD_LEFT) => str_pad($m, 2, '0', STR_PAD_LEFT)]
+                                    ))
+                                    ->native(false)
+                                    ->placeholder('MM')
+                                    ->required($isPayAgency),
+
+                                Forms\Components\Select::make('card_expiry_year')
+                                    ->label('Expiry Year')
+                                    ->options(collect(range(now()->year, now()->year + 10))->mapWithKeys(
+                                        fn ($y) => [$y => $y]
+                                    ))
+                                    ->native(false)
+                                    ->placeholder('YYYY')
+                                    ->required($isPayAgency),
+
+                                Forms\Components\TextInput::make('card_cvv')
+                                    ->label('CVV')
+                                    ->placeholder('123')
+                                    ->password()
+                                    ->revealable()
+                                    ->maxLength(4)
+                                    ->required($isPayAgency),
+                            ]),
+                    ]),
+
+                Forms\Components\Section::make('Customer Information')
+                    ->description('Your details will be submitted to the payment gateway.')
+                    ->icon('heroicon-o-user')
+                    ->visible($isPayAgency)
+                    ->schema([
+                        Forms\Components\Grid::make(3)
+                            ->schema([
+                                Forms\Components\TextInput::make('customer_first_name')
+                                    ->label('First Name')
+                                    ->required($isPayAgency)
+                                    ->default(fn () => auth()->user()?->first_name),
+
+                                Forms\Components\TextInput::make('customer_last_name')
+                                    ->label('Last Name')
+                                    ->required($isPayAgency)
+                                    ->default(fn () => auth()->user()?->last_name),
+
+                                Forms\Components\TextInput::make('customer_email')
+                                    ->label('Email')
+                                    ->email()
+                                    ->required($isPayAgency)
+                                    ->default(fn () => auth()->user()?->email),
+                            ]),
                     ]),
             ]);
     }

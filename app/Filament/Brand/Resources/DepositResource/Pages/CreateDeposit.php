@@ -14,11 +14,38 @@ class CreateDeposit extends CreateRecord
 {
     protected static string $resource = DepositResource::class;
 
-    /** Payment link URL returned by pay.agency — used to redirect the user after creation. */
-    protected ?string $payAgencyPaymentLinkUrl = null;
+    /** Card and customer data extracted from the form — not persisted on the model. */
+    protected ?array $cardData     = null;
+    protected ?array $customerData = null;
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
+        // Extract card / customer fields before the model is created.
+        $this->cardData = [
+            'number'       => $data['card_number'] ?? '',
+            'expiry_month' => $data['card_expiry_month'] ?? '',
+            'expiry_year'  => $data['card_expiry_year'] ?? '',
+            'cvv'          => $data['card_cvv'] ?? '',
+            'holder_name'  => $data['card_holder_name'] ?? '',
+        ];
+
+        $this->customerData = [
+            'first_name' => $data['customer_first_name'] ?? '',
+            'last_name'  => $data['customer_last_name'] ?? '',
+            'email'      => $data['customer_email'] ?? '',
+        ];
+
+        unset(
+            $data['card_number'],
+            $data['card_expiry_month'],
+            $data['card_expiry_year'],
+            $data['card_cvv'],
+            $data['card_holder_name'],
+            $data['customer_first_name'],
+            $data['customer_last_name'],
+            $data['customer_email'],
+        );
+
         $brand = auth()->user()->brands()->first();
         $data['brand_id'] = $brand->id;
         $data['user_id']  = auth()->id();
@@ -38,17 +65,28 @@ class CreateDeposit extends CreateRecord
 
         try {
             $service = new PayAgencyService($account);
-            $result  = $service->createPaymentLink(
+            $result  = $service->submitCard(
                 (float) $record->amount,
-                str_pad((string) $record->id, 3, '0', STR_PAD_LEFT)
+                str_pad((string) $record->id, 3, '0', STR_PAD_LEFT),
+                $this->cardData ?? [],
+                $this->customerData ?? [],
             );
 
-            $paymentUrl = $result['data'] ?? null;
+            $status = $result['status'] ?? null;
 
-            if ($paymentUrl && str_starts_with((string) $paymentUrl, 'http')) {
-                // Store on record and redirect user to pay.agency's hosted payment page
-                $record->update(['gateway_response' => $result]);
-                $this->payAgencyPaymentLinkUrl = $paymentUrl;
+            if ($status === 'SUCCESS') {
+                $record->update([
+                    'status'                    => Deposit::STATUS_PAID,
+                    'paid_at'                   => now(),
+                    'pay_agency_transaction_id' => $result['data']['transaction_id'] ?? null,
+                    'gateway_response'          => $result,
+                ]);
+
+                Notification::make()
+                    ->title('Payment successful')
+                    ->body('Your deposit has been processed.')
+                    ->success()
+                    ->send();
             } else {
                 $record->update([
                     'status'           => Deposit::STATUS_FAILED,
@@ -56,14 +94,14 @@ class CreateDeposit extends CreateRecord
                 ]);
 
                 Notification::make()
-                    ->title('Could not generate payment link')
-                    ->body($result['message'] ?? 'Please try again or contact support.')
+                    ->title('Payment failed')
+                    ->body($result['message'] ?? 'The payment could not be processed. Please check your card details and try again.')
                     ->danger()
                     ->persistent()
                     ->send();
             }
         } catch (\Throwable $e) {
-            Log::error('Pay.agency payment link error', [
+            Log::error('Pay.agency card submission error', [
                 'deposit_id' => $record->id,
                 'error'      => $e->getMessage(),
             ]);
@@ -72,19 +110,15 @@ class CreateDeposit extends CreateRecord
 
             Notification::make()
                 ->title('Payment error')
-                ->body('Could not connect to payment gateway. Please contact support.')
+                ->body('Could not connect to the payment gateway. Please contact support.')
                 ->danger()
                 ->persistent()
                 ->send();
         }
     }
 
-    /**
-     * Redirect to the pay.agency payment page if a link was generated,
-     * otherwise fall back to the deposits list.
-     */
     protected function getRedirectUrl(): string
     {
-        return $this->payAgencyPaymentLinkUrl ?? $this->getResource()::getUrl('index');
+        return $this->getResource()::getUrl('index');
     }
 }

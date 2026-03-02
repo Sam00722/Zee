@@ -10,15 +10,12 @@ class PayAgencyService
 {
     protected string $bearerToken;
 
-    protected string $templateId;
-
     protected string $currency;
 
     protected string $webhookSecret;
 
-    protected string $statusApiUrl;
-
-    private const PAYMENT_LINK_URL = 'https://backend.pay.agency/api/v1/payment-link';
+    /** Base URL for card charge and status endpoints. */
+    protected string $cardApiUrl;
 
     public function __construct(PaymentMethodAccount $account)
     {
@@ -27,64 +24,74 @@ class PayAgencyService
             : (array) json_decode((string) $account->credentials, true);
 
         $this->bearerToken   = $credentials['bearer_token'] ?? '';
-        $this->templateId    = $credentials['payment_template_id'] ?? '';
         $this->currency      = $credentials['currency'] ?? 'USD';
         $this->webhookSecret = $credentials['webhook_secret'] ?? '';
 
         $mode = $credentials['mode'] ?? 'live';
-        $this->statusApiUrl = $mode === 'test'
+        $this->cardApiUrl = $mode === 'test'
             ? 'https://backend.pay.agency/api/v1/test/card'
             : 'https://backend.pay.agency/api/v1/live/card';
     }
 
     /**
-     * Create a hosted payment link on pay.agency.
-     * Returns the raw JSON response. On success, response['data'] is the payment URL.
+     * Submit a card payment directly to pay.agency.
+     *
+     * @param  float   $amount
+     * @param  string  $orderId
+     * @param  array   $card     Keys: number, expiry_month, expiry_year, cvv, holder_name
+     * @param  array   $customer Keys: first_name, last_name, email
      */
-    public function createPaymentLink(float $amount, string $orderId): array
+    public function submitCard(float $amount, string $orderId, array $card, array $customer): array
     {
         if ($this->bearerToken === '') {
-            throw new \InvalidArgumentException(
-                'Pay.agency bearer_token must be set in the account credentials.'
-            );
+            throw new \InvalidArgumentException('Pay.agency bearer_token must be set in the account credentials.');
         }
 
-        // payment_template_id and terminal_id must NOT be sent with a test key (pay.agency docs).
-        // Only include them when they are explicitly set in the credentials (i.e. live mode).
-        $payload = array_filter([
-            'payment_template_id' => $this->templateId ?: null,
-            'amount'              => $amount,
-            'currency'            => $this->currency ?: null,
-            'order_id'            => $orderId,
-        ], static fn ($v) => $v !== null);
+        $payload = [
+            'amount'   => $amount,
+            'currency' => $this->currency,
+            'order_id' => $orderId,
+            'card'     => [
+                'number'       => preg_replace('/\D/', '', $card['number'] ?? ''),
+                'expiry_month' => $card['expiry_month'] ?? '',
+                'expiry_year'  => $card['expiry_year'] ?? '',
+                'cvv'          => $card['cvv'] ?? '',
+                'holder_name'  => $card['holder_name'] ?? '',
+            ],
+            'customer' => [
+                'first_name' => $customer['first_name'] ?? '',
+                'last_name'  => $customer['last_name'] ?? '',
+                'email'      => $customer['email'] ?? '',
+            ],
+        ];
 
-        Log::info('Pay.agency: creating payment link', [
-            'url'                  => self::PAYMENT_LINK_URL,
-            'bearer_token_preview' => substr($this->bearerToken, 0, 10).'...',
-            'template_id'          => $this->templateId ?: '(not set)',
-            'currency'             => $this->currency ?: '(not set)',
-            'payload_sent'         => $payload,
+        Log::info('Pay.agency: submitting card payment', [
+            'url'        => $this->cardApiUrl,
+            'order_id'   => $orderId,
+            'amount'     => $amount,
+            'currency'   => $this->currency,
+            'card_last4' => substr(preg_replace('/\D/', '', $card['number'] ?? ''), -4),
         ]);
 
         $response = Http::withHeaders([
             'Authorization' => 'Bearer '.$this->bearerToken,
             'Content-Type'  => 'application/json',
-        ])->post(self::PAYMENT_LINK_URL, $payload);
+        ])->post($this->cardApiUrl, $payload);
 
         $body = $response->json();
 
-        Log::info('Pay.agency: payment link response', [
+        Log::info('Pay.agency: card payment response', [
             'http_status'   => $response->status(),
             'response_body' => $body ?? $response->body(),
         ]);
 
         if ($body === null) {
-            Log::error('Pay.agency: empty response from payment link API', [
+            Log::error('Pay.agency: empty response from card API', [
                 'http_status' => $response->status(),
                 'body'        => $response->body(),
             ]);
 
-            return ['message' => 'No response received from gateway.'];
+            return ['status' => 'ERROR', 'message' => 'No response received from gateway.'];
         }
 
         return $body;
@@ -112,14 +119,14 @@ class PayAgencyService
     }
 
     /**
-     * Look up a transaction status by transaction ID via the status API.
+     * Look up a transaction status by transaction ID.
      */
     public function getTransactionStatus(string $transactionId): array
     {
         $response = Http::withHeaders([
             'Authorization' => 'Bearer '.$this->bearerToken,
             'Content-Type'  => 'application/json',
-        ])->get("{$this->statusApiUrl}/status/{$transactionId}");
+        ])->get("{$this->cardApiUrl}/status/{$transactionId}");
 
         $body = $response->json();
 

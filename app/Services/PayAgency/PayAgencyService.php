@@ -12,8 +12,6 @@ class PayAgencyService
 
     protected string $currency;
 
-    protected string $webhookSecret;
-
     /** Base URL for card charge and status endpoints. */
     protected string $cardApiUrl;
 
@@ -23,9 +21,8 @@ class PayAgencyService
             ? $account->credentials
             : (array) json_decode((string) $account->credentials, true);
 
-        $this->bearerToken   = $credentials['bearer_token'] ?? '';
-        $this->currency      = $credentials['currency'] ?? 'USD';
-        $this->webhookSecret = $credentials['webhook_secret'] ?? '';
+        $this->bearerToken = $credentials['bearer_token'] ?? '';
+        $this->currency    = $credentials['currency'] ?? 'USD';
 
         $mode = $credentials['mode'] ?? 'live';
         $this->cardApiUrl = $mode === 'test'
@@ -95,22 +92,6 @@ class PayAgencyService
         }
 
         return $body;
-    }
-
-    /**
-     * Verify the fs-webhook-hash header sent by pay.agency.
-     * Returns true if webhook_secret is not configured (verification skipped).
-     */
-    public function verifyWebhookSignature(string $rawPayload, string $hash): bool
-    {
-        if ($this->webhookSecret === '') {
-            return true;
-        }
-
-        return hash_equals(
-            hash_hmac('sha256', $rawPayload, $this->webhookSecret),
-            $hash
-        );
     }
 
     public function getCurrency(): string
